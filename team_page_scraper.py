@@ -1,43 +1,52 @@
 from bs4 import BeautifulSoup
 import requests
+import datetime
+from team import Team
 
-# uncomment to fetch new data rather than using the save html
-#url = "http://flattrackstats.com/teams/7768/rankings/global"
-#page = requests.get(url)
-#soup = BeautifulSoup(page.content, "html.parser")
+def get_team(team_path):
 
-with open("CRD A.html", encoding="utf8") as page:
-    soup = BeautifulSoup(page, 'html.parser')
+    if(team_path):
+        url = "http://flattrackstats.com" + team_path
+        page = requests.get(url)
+        soup = BeautifulSoup(page.content, "html.parser")
+        print("team found")
+    else:
+        with open("CRD A.html", encoding="utf8") as page:
+            soup = BeautifulSoup(page, 'html.parser')
 
-# There are two tables, with the class rankingscontainer,
-# only the one on the right - the newest one - is styled with "rightflush"
-table_rows = soup.find("td", class_="rankingsperteam").find("tbody").find_all("tr")
+    # There are two tables, with the class rankingscontainer,
+    # only the one on the right - the newest one - is styled with "rightflush"
+    table_rows = soup.find(
+        "div", id="quicktabs_tabpage_teams-rankings-drilldown_simple").find("tbody").find_all("tr")
 
-name = input("What is the name of the file?\n")
-filename = f"output/{name}.html"
+    team = Team()
+    team.name = soup.find("title").text.split(" | ")[0]
+    # if a team is wftda associated there is a tab button to switch between fts and wftda rnakings
+    # by searching for WFTDA we can check that the button exists on the page.
+    team.wftda = bool(soup.find(string="WFTDA"))
 
-with open(filename, "w", encoding="utf-8") as file:
     for row in table_rows:
-        cols = row.find_all("td")
 
-        ranking = cols[0].text
-        team_url = cols[2].find("a")["href"]
+        td_cols = row.find_all("td")
 
-        # handle long team names
-        team = cols[2].text if len(cols[2].find_all("span")) == 0 else cols[2].find("span")["title"]
+        # has format dd/mm/yy
+        date_string = td_cols[0].text.strip(" \n")
+        date_date = datetime.datetime.strptime(date_string, "%m/%d/%y")
+        if date_date <= datetime.datetime(2021, 1, 1):
+            break
 
-        rating = cols[3].text
+        opponent = " ".join(td_cols[2].find("a").text.split())
 
-        file.write(f"{ranking} {team}, {rating}\n")
+        opponent_points = int(td_cols[2].find_all("span")[1].text[1:-1])
+        team_points = int(td_cols[1].find_all("span")[1].text[1:-1])
 
-        # Get most recent games
+        team.games.append([opponent,team_points,opponent_points, date_date])
 
-        exit()
+        ## Unsure if this is necessary on team page
+        ## # handle long team names
+        ## team = cols[2].text if len(cols[2].find_all(
+        ##     "span")) == 0 else cols[2].find("span")["title"]
+    return team
 
-        
-# each table is in a .rankingscontainer
-
-exit()
-
-soup = BeautifulSoup("<p>Some<b>bad<i>HTML")
-print(soup.prettify())
+if __name__ == "__main__":
+    get_team(None)
